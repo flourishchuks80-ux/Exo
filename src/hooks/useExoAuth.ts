@@ -8,7 +8,7 @@ import { braga } from "@arkiv-network/sdk/chains";
 import type { WalletArkivClient } from "@arkiv-network/sdk";
 
 export function useExoAuth() {
-  const { ready, authenticated, user, login, logout } = usePrivy();
+  const { ready, authenticated, user, login, logout, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const { deriveKey, clearKey, masterKey, isKeyDerived, isDerivingKey, error: encryptionError } = useEncryptionContext();
 
@@ -18,24 +18,46 @@ export function useExoAuth() {
 
   const initEncryption = useCallback(async () => {
     if (isKeyDerived) return;
+
+    // Telegram WebApp: MPC iframe is blocked so useWallets() returns [].
+    // Fall back to server-assisted signing via Privy Management API.
+    if (!embeddedWallet && walletAddress) {
+      const token = await getAccessToken().catch(() => null);
+      if (!token) return;
+
+      await deriveKey(walletAddress, async () => {
+        const resp = await fetch("/api/auth/sign-derivation", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ walletAddress }),
+        });
+        if (!resp.ok) throw new Error(await resp.text().catch(() => "Server signing failed"));
+        const { signature } = (await resp.json()) as { signature: string };
+        return signature;
+      });
+      return;
+    }
+
     if (!embeddedWallet || !walletAddress) return;
 
-    // personal_sign is chain-agnostic — no switchChain needed here.
-    // switchChain can throw in sandboxed envs (Telegram WebApp) and would
-    // silently block key derivation since initEncryption has no outer catch.
+    // Normal path (main app): sign client-side.
+    // personal_sign is chain-agnostic — switchChain is not needed here and
+    // throws in sandboxed envs (Telegram WebApp), silently blocking derivation.
     let signMessage: (msg: string) => Promise<string>;
     try {
       const provider = await embeddedWallet.getEthereumProvider();
       signMessage = (message: string) =>
         provider.request({ method: "personal_sign", params: [message, walletAddress] });
     } catch (e) {
-      // Route provider-setup errors through deriveKey so encryptionError is set
       await deriveKey(walletAddress, async () => { throw e; });
       return;
     }
 
     await deriveKey(walletAddress, signMessage);
-  }, [embeddedWallet, walletAddress, isKeyDerived, deriveKey]);
+  }, [embeddedWallet, walletAddress, isKeyDerived, deriveKey, getAccessToken]);
 
   useEffect(() => {
     if (authenticated && walletAddress && !isKeyDerived && !isDerivingKey) {

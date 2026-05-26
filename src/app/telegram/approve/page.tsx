@@ -29,6 +29,7 @@ declare global {
         ready: () => void;
         close: () => void;
         expand: () => void;
+        openLink: (url: string) => void;
       };
     };
   }
@@ -223,22 +224,22 @@ function ApproveContent() {
           </div>
         ) : !isKeyDerived ? (
           <div className="space-y-2">
-            {!hasEmbeddedWallet ? (
-              <div className="flex items-start gap-2 text-[#F0A070] text-xs">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>No embedded wallet found. Open the main Exo app first to set up your wallet, then try again.</span>
-              </div>
-            ) : (
-              <div className="flex items-start gap-2 text-[#F0A070] text-xs">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>{encryptionError ?? "Encryption key unavailable. Tap retry to initialise."}</span>
-              </div>
-            )}
+            <div className="flex items-start gap-2 text-[#F0A070] text-xs">
+              <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+              <span>{encryptionError ?? "Encryption key unavailable. Tap retry to initialise."}</span>
+            </div>
             <button
               onClick={() => { setKeyWaiting(true); setKeyRetries((n) => n + 1); }}
               className="w-full py-3 rounded-xl text-sm font-semibold text-[#F0F4FF] bg-[#192235] border border-[rgba(0,212,170,0.2)]"
             >
-              Retry Key Setup
+              Retry
+            </button>
+            {/* Fallback: open in browser where Privy's MPC wallet iframe is not sandboxed */}
+            <button
+              onClick={() => window.Telegram?.WebApp?.openLink(window.location.href)}
+              className="w-full py-2 text-xs text-[#8B9CC8]"
+            >
+              Open in browser instead →
             </button>
           </div>
         ) : (
