@@ -21,19 +21,6 @@ const bragaChain: any = {
   testnet: true,
 };
 
-const privyConfig = {
-  loginMethods: ["email", "wallet"] as const,
-  appearance: {
-    theme: "dark" as const,
-    accentColor: "#00D4AA" as `#${string}`,
-    logo: "/exo-logo.svg",
-  },
-  embeddedWallets: {
-    createOnLogin: "users-without-wallets" as const,
-  },
-  supportedChains: [bragaChain],
-  defaultChain: bragaChain,
-};
 
 class PrivyErrorBoundary extends Component<
   { children: ReactNode },
@@ -95,7 +82,22 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <PrivyErrorBoundary>
-        <PrivyProvider appId={privyAppId} config={privyConfig}>
+        <PrivyProvider
+          appId={privyAppId}
+          config={{
+            loginMethods: ["email", "wallet"],
+            appearance: {
+              theme: "dark",
+              accentColor: "#00D4AA",
+              logo: "/exo-logo.svg",
+            },
+            embeddedWallets: {
+              createOnLogin: "users-without-wallets",
+            },
+            supportedChains: [bragaChain],
+            defaultChain: bragaChain,
+          }}
+        >
           <EncryptionProvider>{children}</EncryptionProvider>
         </PrivyProvider>
       </PrivyErrorBoundary>
