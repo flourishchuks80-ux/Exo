@@ -1,5 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
-
 export const runtime = "edge";
 
 type ExtractedFact = {
@@ -33,35 +31,30 @@ async function tg(token: string, method: string, body: object): Promise<void> {
   });
 }
 
-async function callClaude(client: Anthropic, userMessage: string): Promise<string> {
-  const resp = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 512,
-    system: `You are Exo, a sovereign AI memory assistant. You help users capture and organise their knowledge on the Arkiv blockchain. Be concise and conversational — 2-3 sentences max. When users share facts about themselves, acknowledge them naturally. You cannot access the user's stored memories in this context.`,
-    messages: [{ role: "user", content: userMessage }],
+async function getAiReply(userMessage: string, baseUrl: string): Promise<string> {
+  const resp = await fetch(`${baseUrl}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      messages: [{ role: "user", content: userMessage }],
+      systemPrompt:
+        "You are Exo, a sovereign AI memory assistant. Be concise and conversational — 2-3 sentences max. When users share facts about themselves, acknowledge them naturally. You cannot access the user's stored memories in this context.",
+      model: "claude",
+    }),
   });
-  return resp.content[0].type === "text" ? resp.content[0].text : "";
+  if (!resp.ok) throw new Error(`chat ${resp.status}`);
+  return resp.text();
 }
 
-async function extractFacts(client: Anthropic, messages: { role: string; content: string }[]): Promise<ExtractedFact[]> {
-  const convo = messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
-  const resp = await client.messages.create({
-    model: "claude-haiku-4-5-20251001",
-    max_tokens: 512,
-    messages: [
-      {
-        role: "user",
-        content: `From this conversation, extract a JSON array of facts about the user. Each fact: content (1 sentence), topic (profession/project/preference/goal/background/expertise/communication_style/constraint), importance (1-100), confidence (0-1), tags (array). Only clear factual statements. Conversation:\n\n${convo}\n\nRespond only with a JSON array, no markdown.`,
-      },
-    ],
+async function getExtractedFacts(userMessage: string, baseUrl: string): Promise<ExtractedFact[]> {
+  const resp = await fetch(`${baseUrl}/api/extract-facts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: [{ role: "user", content: userMessage }] }),
   });
-  const text = resp.content[0].type === "text" ? resp.content[0].text : "[]";
-  try {
-    const facts = JSON.parse(text.replace(/```json\n?|\n?```/g, "").trim());
-    return Array.isArray(facts) ? facts : [];
-  } catch {
-    return [];
-  }
+  if (!resp.ok) return [];
+  const data = await resp.json() as { facts?: ExtractedFact[] };
+  return Array.isArray(data.facts) ? data.facts : [];
 }
 
 export async function POST(req: Request) {
@@ -92,33 +85,20 @@ export async function POST(req: Request) {
     return new Response("OK");
   }
 
-  // Create client inside the handler so process.env is definitely resolved
-  const apiKey = process.env.ANTHROPIC_API_KEY;
-  if (!apiKey) {
-    await tg(botToken, "sendMessage", {
-      chat_id: chatId,
-      text: "⚠️ AI unavailable right now. Please try again later.",
-    });
-    return new Response("OK");
-  }
-  const anthropic = new Anthropic({ apiKey });
-
-  // Run AI response and fact extraction in parallel
-  const [aiReply, facts] = await Promise.all([
-    callClaude(anthropic, text),
-    extractFacts(anthropic, [{ role: "user", content: text }]),
-  ]);
-
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://exo-xi.vercel.app";
 
-  // Send AI reply first (fall back to plain text if Markdown fails)
+  // Run AI response and fact extraction in parallel via existing working routes
+  const [aiReply, facts] = await Promise.all([
+    getAiReply(text, appUrl),
+    getExtractedFacts(text, appUrl),
+  ]);
+
+  // Send AI reply (fall back to plain text if Markdown causes issues)
   await tg(botToken, "sendMessage", {
     chat_id: chatId,
     text: aiReply,
     parse_mode: "Markdown",
-  }).catch(() =>
-    tg(botToken, "sendMessage", { chat_id: chatId, text: aiReply })
-  );
+  }).catch(() => tg(botToken, "sendMessage", { chat_id: chatId, text: aiReply }));
 
   // Send save buttons for high-importance facts
   const highFacts = facts.filter((f) => f.importance >= 60);
