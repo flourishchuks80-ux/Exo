@@ -2,7 +2,7 @@
 
 import { PrivyProvider } from "@privy-io/react-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { useState, useEffect, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { EncryptionProvider } from "@/contexts/EncryptionContext";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -22,7 +22,6 @@ const bragaChain: any = {
 };
 
 export function Providers({ children }: { children: ReactNode }) {
-  const [mounted, setMounted] = useState(false);
   const [queryClient] = useState(
     () =>
       new QueryClient({
@@ -32,15 +31,9 @@ export function Providers({ children }: { children: ReactNode }) {
       })
   );
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   const privyAppId = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
 
-  // During SSR / before hydration, render without PrivyProvider to avoid
-  // throwing on missing/invalid appId during static generation.
-  if (!mounted || !privyAppId) {
+  if (!privyAppId) {
     return (
       <QueryClientProvider client={queryClient}>
         <EncryptionProvider>{children}</EncryptionProvider>

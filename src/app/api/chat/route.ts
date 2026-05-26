@@ -79,9 +79,12 @@ export async function POST(req: NextRequest) {
   }
 
   if (model === "gemini") {
-    const genAI = new GoogleGenerativeAI(
-      process.env.GOOGLE_GENERATIVE_AI_API_KEY ?? ""
-    );
+    const apiKey = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+    if (!apiKey) {
+      return new Response("Google API key not configured", { status: 503 });
+    }
+
+    const genAI = new GoogleGenerativeAI(apiKey);
     const gemModel = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
 
     const history = messages.slice(0, -1).map((m: { role: string; content: string }) => ({
@@ -99,16 +102,26 @@ export async function POST(req: NextRequest) {
     const encoder = new TextEncoder();
     const readableStream = new ReadableStream({
       async start(controller) {
-        for await (const chunk of result.stream) {
-          const text = chunk.text();
-          if (text) controller.enqueue(encoder.encode(text));
+        try {
+          for await (const chunk of result.stream) {
+            const text = chunk.text();
+            if (text) controller.enqueue(encoder.encode(text));
+          }
+        } catch (e) {
+          controller.error(e);
+        } finally {
+          controller.close();
         }
-        controller.close();
       },
     });
 
     return new Response(readableStream, {
-      headers: { "Content-Type": "text/plain; charset=utf-8" },
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Transfer-Encoding": "chunked",
+        "Cache-Control": "no-cache",
+        "X-Accel-Buffering": "no",
+      },
     });
   }
 
