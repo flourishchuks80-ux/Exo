@@ -103,31 +103,38 @@ export default function SharePage() {
                   key={grant.entityKey}
                   className="p-4 bg-[#121A2E] border border-[rgba(0,212,170,0.08)] rounded-xl flex items-center gap-4"
                 >
-                  <div className="w-10 h-10 rounded-lg bg-pink-500/10 border border-pink-500/20 flex items-center justify-center flex-shrink-0">
-                    <Share2 className="w-5 h-5 text-pink-400" />
+                  <div className="w-10 h-10 rounded-lg bg-[rgba(0,212,170,0.06)] border border-[rgba(0,212,170,0.15)] flex items-center justify-center flex-shrink-0">
+                    <Share2 className="w-5 h-5 text-[#00D4AA]" />
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <span className="text-sm font-medium text-[#F0F4FF] truncate">
-                        {grant.payload.grantNote || grant.purpose}
+                        {grant.payload.grantNote || grant.purpose || "Unnamed grant"}
                       </span>
-                      <span className="text-[10px] font-mono text-[#8B9CC8] bg-[#192235] px-2 py-0.5 rounded-full">
+                      <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
+                        grant.scope === "full" ? "bg-[rgba(0,212,170,0.12)] text-[#00D4AA]" :
+                        grant.scope === "semantic" ? "bg-[rgba(99,102,241,0.12)] text-indigo-400" :
+                        grant.scope === "episodic" ? "bg-[rgba(168,85,247,0.12)] text-purple-400" :
+                        "bg-[rgba(245,158,11,0.12)] text-amber-400"
+                      }`}>
                         {grant.scope}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-xs text-[#4F5E7A]">
                       <Clock className="w-3 h-3" />
                       <span>Created {formatDate(grant.grantedAt)}</span>
-                      {grant.granteeWallet && (
-                        <span className="font-mono">{grant.granteeWallet.slice(0, 10)}...</span>
-                      )}
+                      <span className="font-mono">
+                        {grant.granteeWallet === "link-based" || !grant.granteeWallet
+                          ? "link-based"
+                          : `${grant.granteeWallet.slice(0, 10)}...`}
+                      </span>
                     </div>
                   </div>
                   <Button
                     size="sm"
                     variant="danger"
                     onClick={() => handleRevoke(grant.entityKey)}
-                    className="flex-shrink-0"
+                    className="flex-shrink-0 gap-1.5"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     Revoke

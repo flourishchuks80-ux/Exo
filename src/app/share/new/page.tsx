@@ -63,6 +63,7 @@ export default function NewGrantPage() {
         purpose,
         encryptedPayload,
         expiryDays,
+        encryptedDek,
       });
 
       setTxHash(result.txHash);

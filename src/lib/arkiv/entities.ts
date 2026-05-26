@@ -206,6 +206,7 @@ export async function createAccessGrant(
     purpose: string;
     encryptedPayload: EncryptedPayload;
     expiryDays: number;
+    encryptedDek: string;
   }
 ) {
   const now = Date.now();
@@ -221,6 +222,8 @@ export async function createAccessGrant(
       { key: "tokenHash", value: params.tokenHash },
       { key: "grantedAt", value: now },
       { key: "purpose", value: params.purpose },
+      // Stored plaintext so recipients can retrieve it using only the share token
+      { key: "encryptedDek", value: params.encryptedDek },
     ],
   });
 }

@@ -2,11 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { fetchGrantByTokenHash } from "@/lib/arkiv/queries";
-import { fetchSemanticMemories, fetchEpisodicMemories, fetchInstructions } from "@/lib/arkiv/queries";
+import { fetchGrantByTokenHash, fetchSemanticMemories, fetchEpisodicMemories, fetchInstructions } from "@/lib/arkiv/queries";
 import { parseEntityPayload, decryptPayload } from "@/lib/crypto/encryption";
-import { decryptMasterKeyFromShare } from "@/lib/crypto/shareTokens";
-import { hashShareToken } from "@/lib/crypto/shareTokens";
+import { decryptMasterKeyFromShare, hashShareToken } from "@/lib/crypto/shareTokens";
 import { parseEntityAttributes, getEntityPayloadText } from "@/lib/utils/format";
 import { SemanticCard } from "@/components/memory/SemanticCard";
 import { EpisodicCard } from "@/components/memory/EpisodicCard";
@@ -25,6 +23,7 @@ export default function SharedPage() {
   const [episodes, setEpisodes] = useState<import("@/lib/arkiv/schemas").EpisodicMemory[]>([]);
   const [instructions, setInstructions] = useState<import("@/lib/arkiv/schemas").Instruction[]>([]);
   const [ownerAddress, setOwnerAddress] = useState("");
+  const [grantNote, setGrantNote] = useState("");
   const [scope, setScope] = useState("semantic");
 
   useEffect(() => {
@@ -51,29 +50,29 @@ export default function SharedPage() {
           return;
         }
 
-        const grantPayload = parseEntityPayload(getEntityPayloadText(grantEntity));
-        if (!grantPayload) { setStatus("error"); return; }
+        // Read encryptedDek from plaintext attribute — accessible without the owner's masterKey
+        const encryptedDek = grantAttrs.encryptedDek as string | undefined;
+        if (!encryptedDek) {
+          setStatus("error");
+          return;
+        }
 
-        // Derive share key and decrypt master key
-        const grantMasterKey = await decryptMasterKeyFromShare(
-          JSON.parse(
-            (() => {
-              // We need to decrypt the grant payload using the shareKey
-              // But we don't have the masterKey yet — we need to derive it from the token
-              // Actually the encryptedDek inside the payload IS the masterKey encrypted with shareKey
-              // For this to work we need a plaintext payload or a different approach
-              // Let's use a simpler approach: store encryptedDek in attributes directly
-              return "{}";
-            })()
-          ).encryptedDek,
-          token,
-          grantOwner
-        );
+        // Derive shareKey from token → decrypt the owner's masterKey
+        const grantMasterKey = await decryptMasterKeyFromShare(encryptedDek, token, grantOwner);
 
-        // Fetch shared memories based on scope
+        // Fetch grant note from encrypted payload (best-effort; not required for access)
+        try {
+          const grantPayload = parseEntityPayload(getEntityPayloadText(grantEntity));
+          if (grantPayload) {
+            // payload is encrypted with owner's masterKey — skip decryption, use attribute instead
+          }
+          setGrantNote((grantAttrs.purpose as string) ?? "");
+        } catch {}
+
+        // Fetch semantic memories
         if (grantScope === "semantic" || grantScope === "full") {
           const entities = await fetchSemanticMemories(grantOwner as Hex, 0, 50);
-          const decoded = [];
+          const decoded: import("@/lib/arkiv/schemas").SemanticMemory[] = [];
           for (const entity of entities) {
             const attrs = parseEntityAttributes(entity as Parameters<typeof parseEntityAttributes>[0]);
             const encrypted = parseEntityPayload(getEntityPayloadText(entity));
@@ -93,6 +92,56 @@ export default function SharedPage() {
             } catch {}
           }
           setMemories(decoded);
+        }
+
+        // Fetch episodic memories
+        if (grantScope === "episodic" || grantScope === "full") {
+          const entities = await fetchEpisodicMemories(grantOwner as Hex, 30);
+          const decoded: import("@/lib/arkiv/schemas").EpisodicMemory[] = [];
+          for (const entity of entities) {
+            const attrs = parseEntityAttributes(entity as Parameters<typeof parseEntityAttributes>[0]);
+            const encrypted = parseEntityPayload(getEntityPayloadText(entity));
+            if (!encrypted) continue;
+            try {
+              const payload = await decryptPayload<EpisodicMemoryPayload>(encrypted, grantMasterKey);
+              decoded.push({
+                entityKey: entity.key,
+                agentId: (attrs.agentId as AgentId) ?? "claude",
+                sessionId: (attrs.sessionId as string) ?? "",
+                importance: (attrs.importance as number) ?? 50,
+                topic: (attrs.topic as Topic) ?? "project",
+                createdAt: (attrs.createdAt as number) ?? 0,
+                sessionDate: (attrs.sessionDate as number) ?? 0,
+                payload,
+              });
+            } catch {}
+          }
+          setEpisodes(decoded);
+        }
+
+        // Fetch instructions (full scope only)
+        if (grantScope === "full") {
+          const entities = await fetchInstructions(grantOwner as Hex);
+          const decoded: import("@/lib/arkiv/schemas").Instruction[] = [];
+          for (const entity of entities) {
+            const attrs = parseEntityAttributes(entity as Parameters<typeof parseEntityAttributes>[0]);
+            const encrypted = parseEntityPayload(getEntityPayloadText(entity));
+            if (!encrypted) continue;
+            try {
+              const payload = await decryptPayload<InstructionPayload>(encrypted, grantMasterKey);
+              decoded.push({
+                entityKey: entity.key,
+                scope: (attrs.scope as InstructionScope) ?? "global",
+                agentId: (attrs.agentId as AgentId) ?? "any",
+                priority: (attrs.priority as number) ?? 5,
+                isActive: attrs.isActive === 1,
+                category: (attrs.category as InstructionCategory) ?? "behavior",
+                createdAt: (attrs.createdAt as number) ?? 0,
+                payload,
+              });
+            } catch {}
+          }
+          setInstructions(decoded);
         }
 
         setStatus("valid");
@@ -129,10 +178,12 @@ export default function SharedPage() {
     );
   }
 
+  const totalCount = memories.length + episodes.length + instructions.length;
+
   return (
     <div className="min-h-screen bg-[#060810] px-6 py-12">
       <div className="max-w-3xl mx-auto">
-        <div className="flex items-center gap-3 mb-8">
+        <div className="flex items-center gap-3 mb-2">
           <div className="w-10 h-10 rounded-xl bg-[rgba(0,212,170,0.1)] border border-[rgba(0,212,170,0.2)] flex items-center justify-center">
             <Shield className="w-5 h-5 text-[#00D4AA]" />
           </div>
@@ -144,17 +195,56 @@ export default function SharedPage() {
           </div>
         </div>
 
-        <div className="space-y-3">
-          {memories.map((m) => (
-            <SemanticCard key={m.entityKey} memory={m} />
-          ))}
+        {grantNote && (
+          <p className="text-sm text-[#4F5E7A] mb-8 pl-[52px]">{grantNote}</p>
+        )}
 
-          {memories.length === 0 && (
-            <div className="text-center py-12 text-[#4F5E7A]">
-              No memories available in this share.
-            </div>
-          )}
-        </div>
+        {totalCount === 0 ? (
+          <div className="text-center py-12 text-[#4F5E7A]">
+            No memories available in this share.
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {memories.length > 0 && (
+              <section>
+                <p className="text-xs font-mono text-[#4F5E7A] uppercase tracking-wider mb-3">
+                  Semantic Memories ({memories.length})
+                </p>
+                <div className="space-y-3">
+                  {memories.map((m) => (
+                    <SemanticCard key={m.entityKey} memory={m} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {episodes.length > 0 && (
+              <section>
+                <p className="text-xs font-mono text-[#4F5E7A] uppercase tracking-wider mb-3">
+                  Episodes ({episodes.length})
+                </p>
+                <div className="space-y-3">
+                  {episodes.map((e) => (
+                    <EpisodicCard key={e.entityKey} episode={e} />
+                  ))}
+                </div>
+              </section>
+            )}
+
+            {instructions.length > 0 && (
+              <section>
+                <p className="text-xs font-mono text-[#4F5E7A] uppercase tracking-wider mb-3">
+                  Instructions ({instructions.length})
+                </p>
+                <div className="space-y-3">
+                  {instructions.map((i) => (
+                    <InstructionCard key={i.entityKey} instruction={i} />
+                  ))}
+                </div>
+              </section>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
