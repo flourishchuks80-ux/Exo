@@ -31,8 +31,7 @@ async function tg(token: string, method: string, body: object): Promise<void> {
   });
 }
 
-async function callClaude(userMessage: string): Promise<string> {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+async function callClaude(client: Anthropic, userMessage: string): Promise<string> {
   const resp = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
     max_tokens: 512,
@@ -42,8 +41,7 @@ async function callClaude(userMessage: string): Promise<string> {
   return resp.content[0].type === "text" ? resp.content[0].text : "";
 }
 
-async function extractFacts(messages: { role: string; content: string }[]): Promise<ExtractedFact[]> {
-  const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+async function extractFacts(client: Anthropic, messages: { role: string; content: string }[]): Promise<ExtractedFact[]> {
   const convo = messages.map((m) => `${m.role.toUpperCase()}: ${m.content}`).join("\n\n");
   const resp = await client.messages.create({
     model: "claude-haiku-4-5-20251001",
@@ -92,22 +90,35 @@ export async function POST(req: Request) {
     return new Response("OK");
   }
 
+  // Create client inside the handler so process.env is definitely resolved
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!apiKey) {
+    await tg(botToken, "sendMessage", {
+      chat_id: chatId,
+      text: "⚠️ AI unavailable right now. Please try again later.",
+    });
+    return new Response("OK");
+  }
+  const anthropic = new Anthropic({ apiKey });
+
   // Run AI response and fact extraction in parallel
   const [aiReply, facts] = await Promise.all([
-    callClaude(text),
-    extractFacts([{ role: "user", content: text }]),
+    callClaude(anthropic, text),
+    extractFacts(anthropic, [{ role: "user", content: text }]),
   ]);
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://exo-xi.vercel.app";
 
-  // Send AI reply first
+  // Send AI reply first (fall back to plain text if Markdown fails)
   await tg(botToken, "sendMessage", {
     chat_id: chatId,
     text: aiReply,
     parse_mode: "Markdown",
-  });
+  }).catch(() =>
+    tg(botToken, "sendMessage", { chat_id: chatId, text: aiReply })
+  );
 
-  // Send save buttons for high-importance facts in parallel
+  // Send save buttons for high-importance facts
   const highFacts = facts.filter((f) => f.importance >= 60);
   await Promise.all(
     highFacts.map((fact) => {
@@ -121,12 +132,7 @@ export async function POST(req: Request) {
         parse_mode: "Markdown",
         reply_markup: {
           inline_keyboard: [
-            [
-              {
-                text: "Save to Arkiv →",
-                web_app: { url: `${appUrl}/telegram/approve?data=${data}` },
-              },
-            ],
+            [{ text: "Save to Arkiv →", web_app: { url: `${appUrl}/telegram/approve?data=${data}` } }],
           ],
         },
       });
