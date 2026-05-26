@@ -3,49 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils/cn";
-import {
-  LayoutDashboard,
-  Brain,
-  MessageSquare,
-  Share2,
-  Camera,
-  Download,
-  Settings,
-  CheckCircle,
-  BookOpen,
-  ChevronRight,
-  type LucideIcon,
-} from "lucide-react";
-
-type NavChild = { href: string; label: string };
-type NavParent = { label: string; icon: LucideIcon; children: NavChild[] };
-type NavItem = { href: string; label: string; icon: LucideIcon } | NavParent;
-
-const nav: NavItem[] = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  {
-    label: "Memory",
-    icon: Brain,
-    children: [
-      { href: "/memory", label: "All Memory" },
-      { href: "/memory/semantic", label: "Semantic" },
-      { href: "/memory/episodic", label: "Episodic" },
-      { href: "/memory/instructions", label: "Instructions" },
-      { href: "/memory/documents", label: "Documents" },
-    ],
-  },
-  { href: "/chat", label: "AI Chat", icon: MessageSquare },
-  { href: "/share", label: "Share", icon: Share2 },
-  { href: "/snapshot", label: "Snapshots", icon: Camera },
-  { href: "/import", label: "Import", icon: Download },
-  { href: "/verify", label: "Verify", icon: CheckCircle },
-  { href: "/docs", label: "Docs", icon: BookOpen },
-  { href: "/settings", label: "Settings", icon: Settings },
-];
-
-function isParent(item: NavItem): item is NavParent {
-  return "children" in item;
-}
+import { ChevronRight } from "lucide-react";
+import { nav, isParent } from "./nav";
 
 export function Sidebar() {
   const pathname = usePathname();
