@@ -95,7 +95,9 @@ export async function POST(req: NextRequest) {
     const lastMessage = messages[messages.length - 1];
     const chat = gemModel.startChat({
       history,
-      systemInstruction: systemPrompt ?? "",
+      systemInstruction: systemPrompt
+        ? { role: "user", parts: [{ text: systemPrompt }] }
+        : undefined,
     });
 
     const result = await chat.sendMessageStream(lastMessage.content);

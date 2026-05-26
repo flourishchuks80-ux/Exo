@@ -72,9 +72,9 @@ export type GrantScope = (typeof GRANT_SCOPES)[number];
 export const AGENT_IDS = ["claude", "gpt", "gemini", "any"] as const;
 export type AgentId = (typeof AGENT_IDS)[number];
 
-// expiresIn in seconds — 0 means entity lives until chain pruning
+// expiresIn in seconds — BTL=0 fails Arkiv RLP decoding; use large value for permanent
 export const EXPIRY = {
-  NEVER: 0,
+  NEVER: 100 * 365 * 24 * 3600,
   DAYS_7: 7 * 24 * 3600,
   DAYS_30: 30 * 24 * 3600,
   DAYS_90: 90 * 24 * 3600,
