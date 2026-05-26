@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useExoAuth } from "@/hooks/useExoAuth";
@@ -13,6 +13,7 @@ import { OnChainActivity } from "@/components/dashboard/OnChainActivity";
 import { TopBar } from "@/components/layout/TopBar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/Button";
+import { TelegramSetupModal } from "@/components/telegram/TelegramSetupModal";
 import { Brain, Plus, MessageSquare, Camera, Loader2 } from "lucide-react";
 
 export default function DashboardPage() {
@@ -22,6 +23,17 @@ export default function DashboardPage() {
   useEffect(() => {
     if (ready && !authenticated) router.push("/");
   }, [ready, authenticated, router]);
+
+  const [showTelegramModal, setShowTelegramModal] = useState(false);
+  const [telegramUsername, setTelegramUsername] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!authenticated) return;
+    const connected = localStorage.getItem("exo:telegram:username");
+    const dismissed = localStorage.getItem("exo:telegram:onboarding:dismissed");
+    setTelegramUsername(connected);
+    if (!connected && !dismissed) setShowTelegramModal(true);
+  }, [authenticated]);
 
   const { data: health, isLoading: healthLoading } = useMemoryHealth(walletAddress);
   const { data: semanticMemories } = useSemanticMemory(walletAddress, masterKey);
@@ -154,6 +166,17 @@ export default function DashboardPage() {
           )}
         </div>
       </main>
+
+      {showTelegramModal && (
+        <TelegramSetupModal
+          walletAddress={walletAddress}
+          onConnected={(username) => {
+            setTelegramUsername(username);
+            setShowTelegramModal(false);
+          }}
+          onDismiss={() => setShowTelegramModal(false)}
+        />
+      )}
     </div>
   );
 }
