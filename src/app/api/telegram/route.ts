@@ -1,5 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 
+export const runtime = "edge";
+
 type ExtractedFact = {
   content: string;
   topic: string;
