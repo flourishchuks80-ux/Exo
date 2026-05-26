@@ -23,7 +23,7 @@ export async function deriveMasterKey(
     { name: "HKDF", hash: "SHA-256", salt: saltBytes, info },
     baseKey,
     { name: "AES-GCM", length: 256 },
-    false,
+    true,
     ["encrypt", "decrypt"]
   );
 }
