@@ -1,12 +1,19 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 import { usePrivy } from "@privy-io/react-auth";
 import { ArrowRight, Shield, Lock, Globe, ExternalLink, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 
 export default function LandingPage() {
-  const { login, authenticated } = usePrivy();
+  const { login, authenticated, ready } = usePrivy();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (ready && authenticated) router.push("/dashboard");
+  }, [ready, authenticated, router]);
 
   return (
     <div className="min-h-screen bg-[#060810] text-[#F0F4FF]">

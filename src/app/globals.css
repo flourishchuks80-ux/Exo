@@ -138,3 +138,8 @@ code, pre {
 .animate-blink {
   animation: blink 1.2s ease-in-out infinite;
 }
+
+/* Privy: fix invalid p > div nesting in HelpTextContainer (hydration error workaround) */
+p[class*="HelpTextContainer"] > div[class*="HelpTextContainer"] {
+  display: contents;
+}
