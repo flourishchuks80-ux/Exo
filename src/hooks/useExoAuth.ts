@@ -3,9 +3,8 @@
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { useEffect, useCallback } from "react";
 import { useEncryptionContext } from "@/contexts/EncryptionContext";
-import { createWalletClient, http } from "@arkiv-network/sdk";
+import { createWalletClient, custom } from "@arkiv-network/sdk";
 import { braga } from "@arkiv-network/sdk/chains";
-import { privateKeyToAccount } from "@arkiv-network/sdk/accounts";
 import type { WalletArkivClient } from "@arkiv-network/sdk";
 
 export function useExoAuth() {
@@ -45,37 +44,20 @@ export function useExoAuth() {
   }, [authenticated, clearKey]);
 
   const getWalletClient = useCallback(async (): Promise<WalletArkivClient | null> => {
-    if (!embeddedWallet) return null;
+    if (!embeddedWallet || !walletAddress) return null;
 
-    // For embedded wallets we use the provider via viem custom account
+    await embeddedWallet.switchChain(60138453102);
     const provider = await embeddedWallet.getEthereumProvider();
 
-    // Create a custom account that uses the Privy provider for signing
-    const viemAccount = {
-      address: walletAddress as `0x${string}`,
-      type: "local" as const,
-      signMessage: async ({ message }: { message: string | { raw: Uint8Array | `0x${string}` } }) => {
-        const msg = typeof message === "string" ? message : message.raw instanceof Uint8Array
-          ? Buffer.from(message.raw).toString("hex")
-          : message.raw;
-        return provider.request({ method: "personal_sign", params: [msg, walletAddress] });
-      },
-      signTransaction: async (tx: unknown) => {
-        return provider.request({ method: "eth_signTransaction", params: [tx] });
-      },
-      signTypedData: async (data: unknown) => {
-        return provider.request({ method: "eth_signTypedData_v4", params: [walletAddress, JSON.stringify(data)] });
-      },
-      publicKey: undefined,
-      source: "custom" as const,
-    };
-
+    // Use the EIP-1193 provider directly as the transport so viem calls
+    // eth_sendTransaction and Privy handles signing natively. The old
+    // "local" account pattern called eth_signTransaction which Privy v3
+    // rejects with a strict typed-transaction validation error.
     return createWalletClient({
       chain: braga,
-      transport: http(),
-      // @ts-ignore — Privy provider account doesn't match strict viem Account shape
-      account: viemAccount,
-    });
+      transport: custom(provider),
+      account: walletAddress as `0x${string}`,
+    }) as unknown as WalletArkivClient;
   }, [embeddedWallet, walletAddress]);
 
   return {
