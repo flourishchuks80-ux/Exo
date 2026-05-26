@@ -10,23 +10,29 @@ import type { WalletArkivClient } from "@arkiv-network/sdk";
 export function useExoAuth() {
   const { ready, authenticated, user, login, logout } = usePrivy();
   const { wallets } = useWallets();
-  const { deriveKey, clearKey, masterKey, isKeyDerived, isDerivingKey } = useEncryptionContext();
+  const { deriveKey, clearKey, masterKey, isKeyDerived, isDerivingKey, error: encryptionError } = useEncryptionContext();
 
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
   const walletAddress = embeddedWallet?.address ?? user?.wallet?.address ?? null;
+  const hasEmbeddedWallet = !!embeddedWallet;
 
   const initEncryption = useCallback(async () => {
-    if (!embeddedWallet || !walletAddress || isKeyDerived) return;
+    if (isKeyDerived) return;
+    if (!embeddedWallet || !walletAddress) return;
 
-    await embeddedWallet.switchChain(60138453102);
-
-    const provider = await embeddedWallet.getEthereumProvider();
-    const signMessage = async (message: string): Promise<string> => {
-      return provider.request({
-        method: "personal_sign",
-        params: [message, walletAddress],
-      });
-    };
+    // personal_sign is chain-agnostic — no switchChain needed here.
+    // switchChain can throw in sandboxed envs (Telegram WebApp) and would
+    // silently block key derivation since initEncryption has no outer catch.
+    let signMessage: (msg: string) => Promise<string>;
+    try {
+      const provider = await embeddedWallet.getEthereumProvider();
+      signMessage = (message: string) =>
+        provider.request({ method: "personal_sign", params: [message, walletAddress] });
+    } catch (e) {
+      // Route provider-setup errors through deriveKey so encryptionError is set
+      await deriveKey(walletAddress, async () => { throw e; });
+      return;
+    }
 
     await deriveKey(walletAddress, signMessage);
   }, [embeddedWallet, walletAddress, isKeyDerived, deriveKey]);
@@ -68,6 +74,8 @@ export function useExoAuth() {
     masterKey,
     isKeyDerived,
     isDerivingKey,
+    encryptionError,
+    hasEmbeddedWallet,
     login,
     logout,
     initEncryption,

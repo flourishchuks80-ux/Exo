@@ -42,7 +42,7 @@ const topicColor: Record<string, string> = {
 
 function ApproveContent() {
   const searchParams = useSearchParams();
-  const { authenticated, ready, walletAddress, masterKey, isKeyDerived, isDerivingKey, initEncryption, login, getWalletClient } = useExoAuth();
+  const { authenticated, ready, walletAddress, masterKey, isKeyDerived, isDerivingKey, encryptionError, hasEmbeddedWallet, initEncryption, login, getWalletClient } = useExoAuth();
   const createMemory = useCreateSemanticMemory(walletAddress, masterKey);
 
   const [fact, setFact] = useState<FactData | null>(null);
@@ -50,6 +50,7 @@ function ApproveContent() {
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [keyRetries, setKeyRetries] = useState(0);
+  const [keyWaiting, setKeyWaiting] = useState(true);
 
   useEffect(() => {
     const raw = searchParams.get("data");
@@ -73,6 +74,14 @@ function ApproveContent() {
       initEncryption();
     }
   }, [authenticated, isKeyDerived, isDerivingKey, initEncryption, keyRetries]);
+
+  // Give the wallet up to 4 seconds to load before showing the key-unavailable error.
+  // In Telegram WebApp, Privy's useWallets() can populate later than the auth state.
+  useEffect(() => {
+    if (isKeyDerived) { setKeyWaiting(false); return; }
+    const t = setTimeout(() => setKeyWaiting(false), 4000);
+    return () => clearTimeout(t);
+  }, [isKeyDerived, keyRetries]);
 
   const handleSave = useCallback(async () => {
     if (!fact || !authenticated || !masterKey || status === "saving" || status === "saved") return;
@@ -202,24 +211,31 @@ function ApproveContent() {
           >
             Connect Wallet to Save
           </button>
-        ) : isDerivingKey ? (
+        ) : isDerivingKey || (keyWaiting && !isKeyDerived) ? (
           <div className="flex flex-col items-center gap-2 py-3">
             <span className="flex items-center gap-2 text-sm text-[#8B9CC8]">
               <Loader2 className="w-4 h-4 animate-spin text-[#00D4AA]" />
-              Preparing encryption key…
+              {isDerivingKey ? "Preparing encryption key…" : "Loading wallet…"}
             </span>
             <p className="text-[10px] text-[#4F5E7A] text-center">
-              Deriving your sovereign key from wallet signature
+              {isDerivingKey ? "Deriving your sovereign key from wallet signature" : "Connecting your embedded wallet"}
             </p>
           </div>
         ) : !isKeyDerived ? (
           <div className="space-y-2">
-            <div className="flex items-center gap-2 text-[#F0A070] text-xs">
-              <AlertCircle className="w-4 h-4 flex-shrink-0" />
-              <span>Encryption key unavailable. Tap retry to initialise.</span>
-            </div>
+            {!hasEmbeddedWallet ? (
+              <div className="flex items-start gap-2 text-[#F0A070] text-xs">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>No embedded wallet found. Open the main Exo app first to set up your wallet, then try again.</span>
+              </div>
+            ) : (
+              <div className="flex items-start gap-2 text-[#F0A070] text-xs">
+                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                <span>{encryptionError ?? "Encryption key unavailable. Tap retry to initialise."}</span>
+              </div>
+            )}
             <button
-              onClick={() => setKeyRetries((n) => n + 1)}
+              onClick={() => { setKeyWaiting(true); setKeyRetries((n) => n + 1); }}
               className="w-full py-3 rounded-xl text-sm font-semibold text-[#F0F4FF] bg-[#192235] border border-[rgba(0,212,170,0.2)]"
             >
               Retry Key Setup

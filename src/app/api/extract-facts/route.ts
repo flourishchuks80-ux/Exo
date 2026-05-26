@@ -20,7 +20,27 @@ export async function POST(req: NextRequest) {
 
     try {
       const result = await model.generateContent(
-        `From this text, extract a JSON array of facts about the user. Each fact: content (1 sentence), topic (one of: profession/project/preference/goal/background/expertise/communication_style/constraint), importance (1-100), confidence (0-1), tags (string array). Only extract clear factual statements about the user. Text:\n\n${convo}\n\nRespond only with a JSON array, no markdown.`
+        `Extract a JSON array of genuine facts about the USER from this text.
+
+ONLY extract:
+- Factual statements the user made about THEMSELVES (who they are, what they do, goals, skills, background, preferences)
+- Facts must be stated by the user, not inferred from questions they asked
+
+DO NOT extract:
+- Questions or requests the user made (e.g. "user asked for a summary" is NOT a fact)
+- Commands or instructions the user gave the AI
+- Things the AI said
+- Meta-statements about the conversation
+
+Return [] if no genuine user self-descriptions are found.
+
+Each fact: { content (1 concise sentence), topic (one of: profession/project/preference/goal/background/expertise/communication_style/constraint), importance (1-100), confidence (0.0-1.0), tags (string[]) }
+Only include facts with confidence >= 0.65.
+
+Text:
+${convo}
+
+Respond only with a JSON array, no markdown.`
       );
       const responseText = result.response.text().replace(/```json\n?|\n?```/g, "").trim();
       const facts = JSON.parse(responseText);

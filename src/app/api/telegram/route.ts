@@ -101,10 +101,14 @@ export async function POST(req: Request) {
     getExtractedFacts(text, appUrl),
   ]);
 
+  const memorySection = memoryContext
+    ? `Here is what's stored in this user's sovereign memory:\n${memoryContext}`
+    : "";
+
   const systemPrompt = [
-    memoryContext,
-    "You are Exo, a sovereign AI memory assistant. Be concise and conversational — 2-3 sentences max.",
-    "When users share facts about themselves, acknowledge them naturally and relate them to their existing memory topics when relevant.",
+    "You are Exo, a warm and intelligent sovereign AI memory assistant. You help users store and leverage their personal context on the Arkiv blockchain.",
+    memorySection,
+    "Guidelines:\n- Be natural, warm, and conversational — 2-4 sentences per reply\n- When the user tells you things about themselves, acknowledge it genuinely (the important ones will be offered for saving)\n- If they ask about things not in their memory yet, say so naturally and invite them to share\n- Never say things like 'your memory is encrypted' or 'I can only see metadata' — just say 'I'll remember that' or 'tell me more'\n- Reference their memory areas naturally when relevant\n- If asked to summarize what you know, speak about their memory topics warmly",
   ].filter(Boolean).join("\n\n");
 
   const aiReply = await getAiReply(text, systemPrompt, appUrl);
@@ -116,8 +120,8 @@ export async function POST(req: Request) {
     parse_mode: "Markdown",
   }).catch(() => tg(botToken, "sendMessage", { chat_id: chatId, text: aiReply }));
 
-  // Send save buttons for high-importance facts
-  const highFacts = facts.filter((f) => f.importance >= 60);
+  // Send save buttons for high-importance facts (raise bar to reduce noise)
+  const highFacts = facts.filter((f) => f.importance >= 70);
   await Promise.all(
     highFacts.map((fact) => {
       const data = btoa(JSON.stringify({ ...fact, walletAddress }))
