@@ -36,8 +36,8 @@ class PrivyErrorBoundary extends Component<
         <div className="min-h-screen bg-[#060810] flex flex-col items-center justify-center gap-3 px-4 text-center">
           <p className="text-[#F0F4FF] font-semibold">Authentication unavailable</p>
           <p className="text-sm text-[#8B9CC8] max-w-sm">
-            Add <span className="text-[#00D4AA] font-mono">exo-xi.vercel.app</span> to your
-            Privy app&apos;s allowed domains, then reload the page.
+            Authentication failed to initialize. Please reload, or check the
+            browser console for details.
           </p>
           <button
             onClick={() => window.location.reload()}
@@ -92,7 +92,9 @@ export function Providers({ children }: { children: ReactNode }) {
               logo: "/exo-logo.svg",
             },
             embeddedWallets: {
-              createOnLogin: "users-without-wallets",
+              ethereum: {
+                createOnLogin: "users-without-wallets",
+              },
             },
             supportedChains: [bragaChain],
             defaultChain: bragaChain,
