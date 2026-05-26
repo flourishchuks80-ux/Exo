@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useExoAuth } from "@/hooks/useExoAuth";
 import { useMemoryHealth } from "@/hooks/useMemoryHealth";
 import { TopBar } from "@/components/layout/TopBar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/Button";
-import { Shield, Key, Wallet, ExternalLink, Copy, Check, LogOut, AlertTriangle } from "lucide-react";
+import { Shield, Key, Wallet, ExternalLink, Copy, Check, LogOut, AlertTriangle, Send } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 interface SettingItem {
@@ -29,6 +29,44 @@ export default function SettingsPage() {
   }, [ready, authenticated, router]);
 
   const [copied, setCopied] = useState<string | null>(null);
+  const [botToken, setBotToken] = useState("");
+  const [telegramUsername, setTelegramUsername] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [telegramError, setTelegramError] = useState("");
+
+  useEffect(() => {
+    const saved = localStorage.getItem("exo:telegram:username");
+    if (saved) setTelegramUsername(saved);
+  }, []);
+
+  const handleTelegramConnect = useCallback(async () => {
+    if (!botToken || !walletAddress) return;
+    setConnecting(true);
+    setTelegramError("");
+    try {
+      const resp = await fetch("/api/telegram/setup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ botToken, walletAddress }),
+      });
+      const data = await resp.json() as { ok?: boolean; username?: string; error?: string };
+      if (!data.ok || !data.username) throw new Error(data.error ?? "Connection failed");
+      localStorage.setItem("exo:telegram:username", data.username);
+      setTelegramUsername(data.username);
+      setBotToken("");
+    } catch (e) {
+      setTelegramError(e instanceof Error ? e.message : "Connection failed");
+    } finally {
+      setConnecting(false);
+    }
+  }, [botToken, walletAddress]);
+
+  const handleTelegramDisconnect = useCallback(() => {
+    localStorage.removeItem("exo:telegram:username");
+    setTelegramUsername(null);
+    setBotToken("");
+    setTelegramError("");
+  }, []);
 
   const copy = (text: string, id: string) => {
     navigator.clipboard.writeText(text);
@@ -168,6 +206,72 @@ export default function SettingsPage() {
                 </div>
               </div>
             ))}
+
+            {/* Telegram Bot */}
+            <div className="p-5 bg-[#121A2E] border border-[rgba(0,212,170,0.08)] rounded-xl">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="text-[#00D4AA]"><Send className="w-4 h-4" /></div>
+                <h2 className="text-sm font-semibold text-[#F0F4FF]">Telegram Bot</h2>
+              </div>
+
+              {telegramUsername ? (
+                <div className="space-y-3">
+                  <div className="flex items-start justify-between gap-4 py-2">
+                    <div>
+                      <p className="text-xs text-[#4F5E7A] mb-0.5">Connected Bot</p>
+                      <p className="text-sm text-[#00D4AA] font-medium">@{telegramUsername}</p>
+                    </div>
+                    <a
+                      href={`https://t.me/${telegramUsername}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-xs text-[#00D4AA] hover:text-[#00B8A0] transition-colors flex-shrink-0"
+                    >
+                      Open <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                  <p className="text-xs text-[#4F5E7A]">
+                    Chat with your bot on Telegram — it will suggest memories to save on-chain.
+                  </p>
+                  <button
+                    onClick={handleTelegramDisconnect}
+                    className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                  >
+                    Disconnect bot
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  <p className="text-xs text-[#8B9CC8]">
+                    Create a bot via{" "}
+                    <a href="https://t.me/BotFather" target="_blank" rel="noopener noreferrer" className="text-[#00D4AA] hover:underline">
+                      @BotFather
+                    </a>{" "}
+                    on Telegram, then paste its token below.
+                  </p>
+                  <input
+                    type="password"
+                    value={botToken}
+                    onChange={(e) => setBotToken(e.target.value)}
+                    placeholder="123456789:ABCDEFabcdefGHIJKLmnop..."
+                    className="w-full px-3 py-2 bg-[#060810] border border-[rgba(0,212,170,0.2)] rounded-lg text-sm text-[#F0F4FF] font-mono placeholder-[#4F5E7A] focus:outline-none focus:border-[rgba(0,212,170,0.5)]"
+                  />
+                  {telegramError && (
+                    <p className="text-xs text-red-400">{telegramError}</p>
+                  )}
+                  <Button
+                    size="sm"
+                    onClick={handleTelegramConnect}
+                    disabled={!botToken || connecting || !walletAddress}
+                  >
+                    {connecting ? "Connecting…" : "Connect Bot"}
+                  </Button>
+                  {!walletAddress && (
+                    <p className="text-xs text-[#4F5E7A]">Connect your wallet first to link a bot.</p>
+                  )}
+                </div>
+              )}
+            </div>
 
             {/* Environment variables reference */}
             <div className="p-5 bg-[#121A2E] border border-[rgba(0,212,170,0.08)] rounded-xl">
