@@ -130,9 +130,9 @@ export default function ImportPage() {
       body: JSON.stringify({ text }),
     });
     const data = await res.json();
-    const extracted: ExtractedFact[] = (data.facts ?? []).map((f: { content: string; importance?: number }) => ({
+    const extracted: ExtractedFact[] = (data.facts ?? []).map((f: { content: string; topic?: string; importance?: number }) => ({
       content: f.content,
-      topic: guessTopic(f.content),
+      topic: (f.topic as ReturnType<typeof guessTopic>) ?? guessTopic(f.content),
       importance: f.importance ?? 65,
       selected: true,
     }));
