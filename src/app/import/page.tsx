@@ -3,13 +3,13 @@
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useExoAuth } from "@/hooks/useExoAuth";
-import { useCreateSemanticMemory } from "@/hooks/useSemanticMemory";
+import { useImportContext } from "@/contexts/ImportContext";
 import { TopBar } from "@/components/layout/TopBar";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { Button } from "@/components/ui/Button";
 import { ChainWriteProgress } from "@/components/ui/ChainWriteProgress";
 import { guessTopic } from "@/lib/ai/memoryExtractor";
-import { Upload, FileText, Link2, MessageSquare, CheckCircle, Circle, Loader2, X, ChevronRight, ArrowLeft } from "lucide-react";
+import { Upload, FileText, Link2, MessageSquare, CheckCircle, Circle, Loader2, ChevronRight, ArrowLeft, Zap } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 type ImportMode = "chatgpt" | "text" | "url" | "questionnaire";
@@ -47,6 +47,7 @@ const QUESTIONNAIRE = [
 export default function ImportPage() {
   const router = useRouter();
   const { authenticated, ready, walletAddress, masterKey, getWalletClient } = useExoAuth();
+  const { startImport } = useImportContext();
 
   useEffect(() => {
     if (ready && !authenticated) router.push("/");
@@ -63,9 +64,8 @@ export default function ImportPage() {
   const [txHash, setTxHash] = useState<string | undefined>();
   const [showProgress, setShowProgress] = useState(false);
   const [writtenCount, setWrittenCount] = useState(0);
+  const [autoApprove, setAutoApprove] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const createMemory = useCreateSemanticMemory(walletAddress, masterKey);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -152,32 +152,47 @@ export default function ImportPage() {
     }
   };
 
+  const modeLabel: Record<ImportMode, string> = {
+    chatgpt: "ChatGPT Import",
+    text: "Text Import",
+    url: "URL Import",
+    questionnaire: "20-Question Setup",
+  };
+
   const handleBulkWrite = async () => {
     const selected = facts.filter((f) => f.selected);
     if (!selected.length || !masterKey) return;
 
+    if (autoApprove) {
+      startImport(selected, modeLabel[mode ?? "text"]);
+      router.push("/memory");
+      return;
+    }
+
+    // Manual path: full-screen overlay, stays on page
     setStep("writing");
     setShowProgress(true);
 
     const wc = await getWalletClient();
     if (!wc) { setStep("review"); return; }
 
+    const { createSemanticMemory } = await import("@/lib/arkiv/entities");
+    const { encryptPayload } = await import("@/lib/crypto/encryption");
+    const key = masterKey as CryptoKey;
+
     let lastTx = "";
     for (const fact of selected) {
       try {
-        const result = await createMemory.mutateAsync({
+        const encryptedPayload = await encryptPayload(
+          { content: fact.content, source: "user_stated" as const, confidence: 0.85, tags: [], relatedKeys: [] },
+          key
+        );
+        const result = await createSemanticMemory(wc, {
           topic: fact.topic as ReturnType<typeof guessTopic>,
           importance: fact.importance,
           agentId: "claude",
           confirmed: true,
-          payload: {
-            content: fact.content,
-            source: "user_stated" as const,
-            confidence: 0.85,
-            tags: [],
-            relatedKeys: [],
-          },
-          getWalletClient,
+          encryptedPayload,
         });
         lastTx = result.txHash;
         setWrittenCount((c) => c + 1);
@@ -472,7 +487,45 @@ export default function ImportPage() {
                 ))}
               </div>
 
-              <div className="flex gap-3 pt-2">
+              {/* Auto-approve toggle */}
+              <button
+                onClick={() => setAutoApprove((v) => !v)}
+                className={cn(
+                  "w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all",
+                  autoApprove
+                    ? "bg-[rgba(0,212,170,0.06)] border-[rgba(0,212,170,0.2)]"
+                    : "bg-[#0C1120] border-[rgba(255,255,255,0.06)]"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <Zap className={cn("w-4 h-4", autoApprove ? "text-[#00D4AA]" : "text-[#4F5E7A]")} />
+                  <div className="text-left">
+                    <p className={cn("text-xs font-semibold", autoApprove ? "text-[#F0F4FF]" : "text-[#8B9CC8]")}>
+                      Auto-approve all transactions
+                    </p>
+                    <p className="text-[10px] text-[#4F5E7A] mt-0.5">
+                      {autoApprove
+                        ? "Runs in background — you can close this page"
+                        : "You will confirm each transaction manually"}
+                    </p>
+                  </div>
+                </div>
+                <div
+                  className={cn(
+                    "w-9 h-5 rounded-full transition-colors relative flex-shrink-0",
+                    autoApprove ? "bg-[#00D4AA]" : "bg-[#192235]"
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform",
+                      autoApprove ? "translate-x-[18px]" : "translate-x-0.5"
+                    )}
+                  />
+                </div>
+              </button>
+
+              <div className="flex gap-3 pt-1">
                 <Button variant="secondary" onClick={() => setStep("input")}>
                   Back
                 </Button>
@@ -482,7 +535,9 @@ export default function ImportPage() {
                   disabled={facts.filter((f) => f.selected).length === 0}
                   onClick={handleBulkWrite}
                 >
-                  Write {facts.filter((f) => f.selected).length} Memories to Arkiv
+                  {autoApprove
+                    ? `Start Import in Background (${facts.filter((f) => f.selected).length})`
+                    : `Write ${facts.filter((f) => f.selected).length} Memories to Arkiv`}
                 </Button>
               </div>
             </div>

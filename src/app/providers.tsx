@@ -4,6 +4,8 @@ import { PrivyProvider } from "@privy-io/react-auth";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, useEffect, Component, type ReactNode } from "react";
 import { EncryptionProvider } from "@/contexts/EncryptionContext";
+import { ImportProvider } from "@/contexts/ImportContext";
+import { ImportBubble } from "@/components/ui/ImportBubble";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const bragaChain: any = {
@@ -74,7 +76,12 @@ export function Providers({ children }: { children: ReactNode }) {
   if (!mounted || !privyAppId) {
     return (
       <QueryClientProvider client={queryClient}>
-        <EncryptionProvider>{children}</EncryptionProvider>
+        <EncryptionProvider>
+          <ImportProvider>
+            {children}
+            <ImportBubble />
+          </ImportProvider>
+        </EncryptionProvider>
       </QueryClientProvider>
     );
   }
@@ -92,6 +99,8 @@ export function Providers({ children }: { children: ReactNode }) {
               logo: "/exo-logo.svg",
             },
             embeddedWallets: {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              noPromptOnSignature: true as any,
               ethereum: {
                 createOnLogin: "users-without-wallets",
               },
@@ -100,7 +109,12 @@ export function Providers({ children }: { children: ReactNode }) {
             defaultChain: bragaChain,
           }}
         >
-          <EncryptionProvider>{children}</EncryptionProvider>
+          <EncryptionProvider>
+            <ImportProvider>
+              {children}
+              <ImportBubble />
+            </ImportProvider>
+          </EncryptionProvider>
         </PrivyProvider>
       </PrivyErrorBoundary>
     </QueryClientProvider>
