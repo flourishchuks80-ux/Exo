@@ -39,7 +39,7 @@ async function getAiReply(userMessage: string, baseUrl: string): Promise<string>
       messages: [{ role: "user", content: userMessage }],
       systemPrompt:
         "You are Exo, a sovereign AI memory assistant. Be concise and conversational — 2-3 sentences max. When users share facts about themselves, acknowledge them naturally. You cannot access the user's stored memories in this context.",
-      model: "claude",
+      model: "gemini",
     }),
   });
   if (!resp.ok) throw new Error(`chat ${resp.status}`);
