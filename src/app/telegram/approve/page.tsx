@@ -42,13 +42,14 @@ const topicColor: Record<string, string> = {
 
 function ApproveContent() {
   const searchParams = useSearchParams();
-  const { authenticated, ready, walletAddress, masterKey, login, getWalletClient } = useExoAuth();
+  const { authenticated, ready, walletAddress, masterKey, isKeyDerived, isDerivingKey, initEncryption, login, getWalletClient } = useExoAuth();
   const createMemory = useCreateSemanticMemory(walletAddress, masterKey);
 
   const [fact, setFact] = useState<FactData | null>(null);
   const [parseError, setParseError] = useState(false);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [errorMsg, setErrorMsg] = useState("");
+  const [keyRetries, setKeyRetries] = useState(0);
 
   useEffect(() => {
     const raw = searchParams.get("data");
@@ -65,8 +66,16 @@ function ApproveContent() {
     }
   }, [searchParams]);
 
+  // Explicitly trigger key derivation when authenticated — the Telegram WebView
+  // may not have the embedded wallet ready when useExoAuth's own effect fires.
+  useEffect(() => {
+    if (authenticated && !isKeyDerived && !isDerivingKey) {
+      initEncryption();
+    }
+  }, [authenticated, isKeyDerived, isDerivingKey, initEncryption, keyRetries]);
+
   const handleSave = useCallback(async () => {
-    if (!fact || !authenticated || status === "saving" || status === "saved") return;
+    if (!fact || !authenticated || !masterKey || status === "saving" || status === "saved") return;
     setStatus("saving");
     try {
       await createMemory.mutateAsync({
@@ -89,7 +98,7 @@ function ApproveContent() {
       setErrorMsg(e instanceof Error ? e.message : "Unknown error");
       setStatus("error");
     }
-  }, [fact, authenticated, status, createMemory, getWalletClient]);
+  }, [fact, authenticated, masterKey, status, createMemory, getWalletClient]);
 
   const accentColor = fact ? (topicColor[fact.topic] ?? "#8B9CC8") : "#00D4AA";
 
@@ -193,6 +202,29 @@ function ApproveContent() {
           >
             Connect Wallet to Save
           </button>
+        ) : isDerivingKey ? (
+          <div className="flex flex-col items-center gap-2 py-3">
+            <span className="flex items-center gap-2 text-sm text-[#8B9CC8]">
+              <Loader2 className="w-4 h-4 animate-spin text-[#00D4AA]" />
+              Preparing encryption key…
+            </span>
+            <p className="text-[10px] text-[#4F5E7A] text-center">
+              Deriving your sovereign key from wallet signature
+            </p>
+          </div>
+        ) : !isKeyDerived ? (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-[#F0A070] text-xs">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              <span>Encryption key unavailable. Tap retry to initialise.</span>
+            </div>
+            <button
+              onClick={() => setKeyRetries((n) => n + 1)}
+              className="w-full py-3 rounded-xl text-sm font-semibold text-[#F0F4FF] bg-[#192235] border border-[rgba(0,212,170,0.2)]"
+            >
+              Retry Key Setup
+            </button>
+          </div>
         ) : (
           <button
             onClick={handleSave}
