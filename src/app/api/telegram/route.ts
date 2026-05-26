@@ -31,14 +31,22 @@ async function tg(token: string, method: string, body: object): Promise<void> {
   });
 }
 
-async function getAiReply(userMessage: string, baseUrl: string): Promise<string> {
+async function getMemoryContext(walletAddress: string, baseUrl: string): Promise<string> {
+  const resp = await fetch(
+    `${baseUrl}/api/telegram/memory-context?wallet=${encodeURIComponent(walletAddress)}`
+  ).catch(() => null);
+  if (!resp?.ok) return "";
+  const data = await resp.json() as { context?: string };
+  return data.context ?? "";
+}
+
+async function getAiReply(userMessage: string, systemPrompt: string, baseUrl: string): Promise<string> {
   const resp = await fetch(`${baseUrl}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       messages: [{ role: "user", content: userMessage }],
-      systemPrompt:
-        "You are Exo, a sovereign AI memory assistant. Be concise and conversational — 2-3 sentences max. When users share facts about themselves, acknowledge them naturally. You cannot access the user's stored memories in this context.",
+      systemPrompt,
       model: "gemini",
     }),
   });
@@ -87,11 +95,19 @@ export async function POST(req: Request) {
 
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "https://exo-xi.vercel.app";
 
-  // Run AI response and fact extraction in parallel via existing working routes
-  const [aiReply, facts] = await Promise.all([
-    getAiReply(text, appUrl),
+  // Fetch memory context and extract facts in parallel, then get AI reply with context
+  const [memoryContext, facts] = await Promise.all([
+    getMemoryContext(walletAddress, appUrl),
     getExtractedFacts(text, appUrl),
   ]);
+
+  const systemPrompt = [
+    memoryContext,
+    "You are Exo, a sovereign AI memory assistant. Be concise and conversational — 2-3 sentences max.",
+    "When users share facts about themselves, acknowledge them naturally and relate them to their existing memory topics when relevant.",
+  ].filter(Boolean).join("\n\n");
+
+  const aiReply = await getAiReply(text, systemPrompt, appUrl);
 
   // Send AI reply (fall back to plain text if Markdown causes issues)
   await tg(botToken, "sendMessage", {

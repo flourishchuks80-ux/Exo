@@ -21,7 +21,7 @@ import { extractMemorySources } from "@/lib/ai/contextBuilder";
 import { generateSessionSummary } from "@/lib/ai/memoryExtractor";
 import { guessTopic } from "@/lib/ai/memoryExtractor";
 import type { ExoContext } from "@/lib/ai/contextBuilder";
-import { Send, Loader2, ChevronRight, ChevronLeft } from "lucide-react";
+import { Send, Loader2, ChevronRight, ChevronLeft, Brain, X } from "lucide-react";
 import { cn } from "@/lib/utils/cn";
 
 interface Message {
@@ -52,6 +52,7 @@ function ChatContent() {
   const [showSuggestion, setShowSuggestion] = useState(false);
   const [suggestion, setSuggestion] = useState("");
   const [showPanel, setShowPanel] = useState(true);
+  const [showMobilePanel, setShowMobilePanel] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const sessionId = useRef(`0x${Date.now().toString(16)}`);
@@ -261,9 +262,20 @@ function ChatContent() {
                   Save Session
                 </Button>
               )}
+              {/* Mobile sources chip */}
+              {memorySources.length > 0 && (
+                <button
+                  onClick={() => setShowMobilePanel(true)}
+                  className="lg:hidden flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[rgba(0,212,170,0.1)] text-[#00D4AA] text-xs font-medium"
+                >
+                  <Brain className="w-3.5 h-3.5" />
+                  {memorySources.length}
+                </button>
+              )}
+              {/* Desktop panel toggle */}
               <button
                 onClick={() => setShowPanel(!showPanel)}
-                className="p-1.5 text-[#4F5E7A] hover:text-[#8B9CC8] transition-colors"
+                className="hidden lg:block p-1.5 text-[#4F5E7A] hover:text-[#8B9CC8] transition-colors"
               >
                 {showPanel ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
               </button>
@@ -377,6 +389,34 @@ function ChatContent() {
           </div>
         )}
       </div>
+
+      {/* Mobile memory sources bottom sheet */}
+      {showMobilePanel && (
+        <div className="lg:hidden fixed inset-0 z-50 flex flex-col justify-end">
+          <div
+            className="absolute inset-0 bg-black/60"
+            onClick={() => setShowMobilePanel(false)}
+          />
+          <div className="relative bg-[#060810] rounded-t-2xl max-h-[70vh] overflow-y-auto border-t border-[rgba(0,212,170,0.1)]">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[rgba(0,212,170,0.06)]">
+              <div className="flex items-center gap-2">
+                <Brain className="w-4 h-4 text-[#00D4AA]" />
+                <span className="text-sm font-semibold text-[#F0F4FF]">Memory Sources</span>
+              </div>
+              <button
+                onClick={() => setShowMobilePanel(false)}
+                className="p-1 text-[#4F5E7A] hover:text-[#8B9CC8] transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <MemorySourcePanel
+              sources={memorySources}
+              instructionCount={isDemo ? 4 : (instructions?.filter((i) => i.isActive).length ?? 0)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
