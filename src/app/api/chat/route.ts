@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
     }
 
     const genAI = new GoogleGenerativeAI(apiKey);
-    const gemModel = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+    const gemModel = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
 
     const history = messages.slice(0, -1).map((m: { role: string; content: string }) => ({
       role: m.role === "assistant" ? "model" : "user",
