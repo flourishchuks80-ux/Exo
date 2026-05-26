@@ -99,8 +99,7 @@ export function Providers({ children }: { children: ReactNode }) {
               logo: "/exo-logo.svg",
             },
             embeddedWallets: {
-              // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              noPromptOnSignature: true as any,
+              showWalletUIs: false,
               ethereum: {
                 createOnLogin: "users-without-wallets",
               },
