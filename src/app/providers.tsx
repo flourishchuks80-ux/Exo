@@ -25,7 +25,7 @@ const privyConfig = {
   loginMethods: ["email", "wallet"] as const,
   appearance: {
     theme: "dark" as const,
-    accentColor: "#00D4AA",
+    accentColor: "#00D4AA" as `#${string}`,
     logo: "/exo-logo.svg",
   },
   embeddedWallets: {
