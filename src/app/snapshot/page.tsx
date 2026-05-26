@@ -33,20 +33,34 @@ export default function SnapshotPage() {
   const handleCreateSnapshot = async () => {
     setShowProgress(true);
     try {
-      // Generate AI summary via API
-      const response = await fetch("/api/snapshot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          type: "snapshot",
-          memoryData: {
-            semanticCount: semanticMemories?.length ?? 0,
-            episodicCount: episodes?.length ?? 0,
-            topics: Array.from(new Set(semanticMemories?.map((m) => m.topic) ?? [])),
-          },
-        }),
-      });
-      const snapshotData = await response.json();
+      const topics = Array.from(new Set(semanticMemories?.map((m) => m.topic) ?? []));
+      let snapshotData = {
+        aiSummary: "Memory snapshot created.",
+        topTopics: topics,
+        recentThemes: [] as string[],
+        memoryHealthScore: health?.score ?? 50,
+      };
+
+      try {
+        const response = await fetch("/api/snapshot", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "snapshot",
+            memoryData: {
+              semanticCount: semanticMemories?.length ?? 0,
+              episodicCount: episodes?.length ?? 0,
+              topics,
+            },
+          }),
+        });
+        if (response.ok) {
+          const data = await response.json();
+          snapshotData = { ...snapshotData, ...data };
+        }
+      } catch {
+        // use fallback snapshotData — on-chain write still proceeds
+      }
 
       const version = (snapshots?.length ?? 0) + 1;
       const result = await createSnapshot.mutateAsync({
