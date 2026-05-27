@@ -1,5 +1,8 @@
 <div align="center">
 
+
+
+
 ```
 ███████╗██╗  ██╗ ██████╗
 ██╔════╝╚██╗██╔╝██╔═══██╗
@@ -8,7 +11,7 @@
 ███████╗██╔╝ ██╗╚██████╔╝
 ╚══════╝╚═╝  ╚═╝ ╚═════╝
 ```
-
+<img width="1920" height="1080" alt="image" src="https://github.com/user-attachments/assets/7c2f73ad-b7f6-4657-87ef-27d73b5b7cc0" />
 ### **Sovereign AI Memory**
 
 *Not your keys, not your bots. Now your keys. Your bots.*
@@ -458,24 +461,7 @@ Exo demonstrates all major Arkiv query capabilities:
 
 ---
 
-## Submission Requirements
 
-This submission meets all ETHns × Arkiv Challenge 2026 requirements:
-
-- [x] **Theme**: AI + Privacy Hybrid — sovereign encrypted memory on a public chain
-- [x] **GitHub repo**: Public, open source, MIT license, setup in < 5 minutes
-- [x] **Demo link**: Working deployment on Arkiv Braga testnet
-- [x] **Demo video**: 3-minute script produced (see [PRD Demo Video Script](#))
-- [x] **`PROJECT_ATTRIBUTE`**: `app = "exo:v1"` on every entity and every query — no exceptions
-- [x] **Entity types**: 6 types covering all AI memory categories with TTL, range queries, and relationships
-- [x] **Range queries**: `importance ≥ N`, `priority ≥ N`, `sessionDate` range, `createdAt` range
-- [x] **Entity relationships**: `EpisodicMemory.linkedSemanticKeys` → `SemanticMemory` keys
-- [x] **Encryption**: AES-256-GCM on all payloads, client-side only, key never leaves browser
-- [x] **Time-scoped access**: `AccessGrant` with configurable TTL enforced by Arkiv
-- [x] **Versioning**: `MemorySnapshot` with rollback
-- [x] **Submit**: [forms.arkiv.network/ethns-arkiv-challenge](https://forms.arkiv.network/ethns-arkiv-challenge)
-
----
 
 ## Project Structure
 
@@ -537,7 +523,7 @@ That is the only thing that wins.
 
 | Name | GitHub | Role |
 |---|---|---|
-| *[Your name]* | [@flourishchuks80-ux](https://github.com/flourishchuks80-ux) | *[Your role]* |
+| *Flourish* | [@flourishchuks80-ux](https://github.com/flourishchuks80-ux) | *Developer* |
 
 **Prize wallet address:** `[Your Arkiv Braga wallet address]`
 
